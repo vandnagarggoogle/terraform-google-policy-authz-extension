@@ -1,0 +1,93 @@
+apiVersion: blueprints.cloud.google.com/v1alpha1
+kind: BlueprintMetadata
+metadata:
+  name: terraform-google-policy-authz-extension
+  annotations:
+    config.kubernetes.io/local-config: "true"
+spec:
+  info:
+    title: terraform-google-policy-authz-extension
+    source:
+      repo: https://github.com/vandnagarggoogle/terraform-google-policy-authz-extension.git
+      sourceType: git
+    version: 0.0.1
+    actuationTool:
+      flavor: Terraform
+      version: ">= 1.5.7"
+    description:
+      tagline: This is an auto-generated module.
+      detailed: "This module was generated from "
+      preDeploy: To deploy this blueprint you must have an active billing account and billing permissions.
+    icon: assets/icon.png
+    costEstimate:
+      description: Blueprint cost details
+      url: https://cloud.google.com/products/calculator?id=02fb0c45-cc29-4567-8cc6-f72ac9024add
+  content:
+    architecture:
+      diagramUrl: https://www.link-to-architecture-diagram.com
+      description:
+        - 1. Architecture description step no. 1
+        - 2. Architecture description step no. 2
+        - 3. Architecture description step no. N
+    documentation:
+      - title: Hosting a Static Website
+        url: https://cloud.google.com/storage/docs/hosting-static-website
+    examples:
+      - name: simple_example
+        location: examples/simple_example
+  interfaces:
+    variables:
+      - name: project_id
+        description: The ID of the project where resources will be created.
+        varType: string
+        required: true
+      - name: location
+        description: The GCP region for the security resources.
+        varType: string
+        required: true
+      - name: extensions_config
+        description: A map of unique Authz Extensions.
+        varType: |-
+          map(object({
+              description           = optional(string, "Managed by ADC")
+              load_balancing_scheme = string # e.g., "INTERNAL_MANAGED"
+              authority             = string
+              backend_service       = string
+              timeout               = optional(string, "0.1s")
+              fail_open             = optional(bool, false)
+              forward_headers       = optional(list(string), [])
+            }))
+        defaultValue: {}
+      - name: policies_config
+        description: A map of Authz Policies.
+        varType: |-
+          map(object({
+              description           = optional(string, "Managed by ADC")
+              action                = string # ALLOW, DENY, CUSTOM
+              target_resources      = list(string) # URIs of Forwarding Rules
+              load_balancing_scheme = string
+              extension_names       = optional(list(string), []) # Keys from extensions_config
+              
+              # Structure for simplified HTTP Rules
+              http_rules = optional(list(any), []) 
+            }))
+        defaultValue: {}
+    outputs:
+      - name: extension_ids
+        description: Map of extension names to their unique resource IDs.
+      - name: policy_extension_map
+        description: A mapping showing the list of extension IDs associated with each policy name.
+      - name: policy_ids
+        description: Map of policy names to their unique resource IDs.
+  requirements:
+    roles:
+      - level: Project
+        roles:
+          - roles/owner
+    services:
+      - cloudresourcemanager.googleapis.com
+      - storage-api.googleapis.com
+      - serviceusage.googleapis.com
+    providerVersions:
+      - source: hashicorp/google
+        version: ">= 3.53, < 7"
