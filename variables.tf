@@ -35,7 +35,6 @@ variable "extensions_config" {
     fail_open             = optional(bool, false)
     forward_headers       = optional(list(string), [])
   }))
-  default = {}
 }
 
 variable "policies_config" {
@@ -75,5 +74,4 @@ variable "policies_config" {
       when = optional(string) # CEL Expression
     })), [])
   }))
-  default = {}
 }
