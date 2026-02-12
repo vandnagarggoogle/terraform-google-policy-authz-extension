@@ -1,3 +1,17 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 apiVersion: blueprints.cloud.google.com/v1alpha1
 kind: BlueprintMetadata
 metadata:
@@ -13,7 +27,7 @@ spec:
     version: 0.0.2
     actuationTool:
       flavor: Terraform
-      version: ">= 1.5.7"
+      version: ">= 0.13"
     description:
       tagline: This is an auto-generated module.
       detailed: "This module was generated from "
@@ -62,14 +76,39 @@ spec:
         description: A map of Authz Policies.
         varType: |-
           map(object({
-              description           = optional(string, "Managed by ADC")
+              description           = optional(string, "Security policy for Agent Gateway")
               action                = string # ALLOW, DENY, CUSTOM
-              target_resources      = list(string) # URIs of Forwarding Rules
+              target_resources      = list(string)
               load_balancing_scheme = string
-              extension_names       = optional(list(string), []) # Keys from extensions_config
+              extension_names       = optional(list(string), [])
               
-              # Structure for simplified HTTP Rules
-              http_rules = optional(list(any), []) 
+              # Structured HTTP Rules
+              http_rules = optional(list(object({
+                from = optional(object({
+                  sources = optional(list(object({
+                    ip_blocks = optional(list(object({
+                      prefix = string
+                      length = number
+                    })), [])
+                    principals = optional(list(any), [])
+                  })), [])
+                  not_sources = optional(list(object({
+                    ip_blocks = optional(list(object({
+                      prefix = string
+                      length = number
+                    })), [])
+                    principals = optional(list(any), [])
+                  })), [])
+                }))
+                to = optional(object({
+                  operations = optional(list(object({
+                    paths      = optional(list(any), [])
+                    methods    = optional(list(string), [])
+                    header_set = optional(list(any), [])
+                  })), [])
+                }))
+                when = optional(string) # CEL Expression
+              })), [])
             }))
         defaultValue: {}
     outputs:

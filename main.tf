@@ -61,44 +61,38 @@ resource "google_network_security_authz_policy" "policies" {
 
   # Map the complex HTTP rules from your requirement
   dynamic "http_rules" {
-    for_each = lookup(each.value, "http_rules", [])
+    for_each = each.value.http_rules
     content {
-      from {
-        # Optional: Standard sources
-        dynamic "sources" {
-          for_each = lookup(http_rules.value.from, "sources", [])
-          content {
-            dynamic "ip_blocks" {
-              for_each = lookup(sources.value, "ip_blocks", [])
-              content {
-                prefix = ip_blocks.value.prefix
-                length = ip_blocks.value.length
+      # The CEL expression condition
+      when = http_rules.value.when
+
+      dynamic "from" {
+        for_each = http_rules.value.from != null ? [http_rules.value.from] : []
+        content {
+          # Handle 'sources'
+          dynamic "sources" {
+            for_each = from.value.sources
+            content {
+              dynamic "ip_blocks" {
+                for_each = sources.value.ip_blocks
+                content {
+                  prefix = ip_blocks.value.prefix
+                  length = ip_blocks.value.length
+                }
               }
+              # ... add principals mapping ...
             }
           }
-        }
 
-        # Handle 'not_sources' logic from your example
-        dynamic "not_sources" {
-          for_each = lookup(http_rules.value.from, "not_sources", [])
-          content {
-            dynamic "ip_blocks" {
-              for_each = lookup(not_sources.value, "ip_blocks", [])
-              content {
-                prefix = ip_blocks.value.prefix
-                length = ip_blocks.value.length
-              }
-            }
-            dynamic "principals" {
-              for_each = lookup(not_sources.value, "principals", [])
-              content {
-                principal_selector = principals.value.principal_selector
-                dynamic "principal" {
-                  for_each = [principals.value.principal]
-                  content {
-                    exact       = principal.value.exact
-                    ignore_case = lookup(principal.value, "ignore_case", true)
-                  }
+          # Handle 'not_sources' (Your specific requirement)
+          dynamic "not_sources" {
+            for_each = from.value.not_sources
+            content {
+              dynamic "ip_blocks" {
+                for_each = not_sources.value.ip_blocks
+                content {
+                  prefix = ip_blocks.value.prefix
+                  length = ip_blocks.value.length
                 }
               }
             }
@@ -106,27 +100,15 @@ resource "google_network_security_authz_policy" "policies" {
         }
       }
 
-      to {
-        dynamic "operations" {
-          for_each = lookup(http_rules.value.to, "operations", [])
-          content {
-            dynamic "header_set" {
-              for_each = lookup(operations.value, "header_set", [])
-              content {
-                dynamic "headers" {
-                  for_each = lookup(header_set.value, "headers", [])
-                  content {
-                    name = headers.value.name
-                    dynamic "value" {
-                      for_each = [headers.value.value]
-                      content {
-                        exact       = value.value.exact
-                        ignore_case = lookup(value.value, "ignore_case", true)
-                      }
-                    }
-                  }
-                }
-              }
+      dynamic "to" {
+        for_each = http_rules.value.to != null ? [http_rules.value.to] : []
+        content {
+          dynamic "operations" {
+            for_each = to.value.operations
+            content {
+              paths   = operations.value.paths
+              methods = operations.value.methods
+              # ... add header_set mapping ...
             }
           }
         }

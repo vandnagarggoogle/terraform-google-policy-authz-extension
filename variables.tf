@@ -41,14 +41,39 @@ variable "extensions_config" {
 variable "policies_config" {
   description = "A map of Authz Policies."
   type = map(object({
-    description           = optional(string, "Managed by ADC")
+    description           = optional(string, "Security policy for Agent Gateway")
     action                = string # ALLOW, DENY, CUSTOM
-    target_resources      = list(string) # URIs of Forwarding Rules
+    target_resources      = list(string)
     load_balancing_scheme = string
-    extension_names       = optional(list(string), []) # Keys from extensions_config
+    extension_names       = optional(list(string), [])
     
-    # Structure for simplified HTTP Rules
-    http_rules = optional(list(any), []) 
+    # Structured HTTP Rules
+    http_rules = optional(list(object({
+      from = optional(object({
+        sources = optional(list(object({
+          ip_blocks = optional(list(object({
+            prefix = string
+            length = number
+          })), [])
+          principals = optional(list(any), [])
+        })), [])
+        not_sources = optional(list(object({
+          ip_blocks = optional(list(object({
+            prefix = string
+            length = number
+          })), [])
+          principals = optional(list(any), [])
+        })), [])
+      }))
+      to = optional(object({
+        operations = optional(list(object({
+          paths      = optional(list(any), [])
+          methods    = optional(list(string), [])
+          header_set = optional(list(any), [])
+        })), [])
+      }))
+      when = optional(string) # CEL Expression
+    })), [])
   }))
   default = {}
 }
