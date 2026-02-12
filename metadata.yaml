@@ -24,7 +24,7 @@ spec:
     source:
       repo: https://github.com/vandnagarggoogle/terraform-google-policy-authz-extension.git
       sourceType: git
-    version: 0.0.5
+    version: 0.0.6
     actuationTool:
       flavor: Terraform
       version: ">= 0.13"
@@ -71,7 +71,6 @@ spec:
               fail_open             = optional(bool, false)
               forward_headers       = optional(list(string), [])
             }))
-        defaultValue: {}
       - name: policies_config
         description: A map of Authz Policies.
         varType: |-
@@ -110,7 +109,6 @@ spec:
                 when = optional(string) # CEL Expression
               })), [])
             }))
-        defaultValue: {}
     outputs:
       - name: extension_ids
         description: Map of extension names to their unique resource IDs.
