@@ -25,3 +25,11 @@ spec:
         project_id:
           name: project_id
           title: Project Id
+    runtime:
+      outputs:
+        extension_ids:
+          visibility: VISIBILITY_ROOT
+        policy_ids:
+          visibility: VISIBILITY_ROOT
+        policy_extension_map:
+          visibility: VISIBILITY_ROOT
