@@ -1,18 +1,4 @@
-/**
- * Copyright 2021 Google LLC
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+
 
 # 1. Provision Authz Extensions (Deduplicated via Map Keys)
 resource "google_network_services_authz_extension" "extensions" {
@@ -40,17 +26,16 @@ resource "google_network_security_authz_policy" "policies" {
   description = lookup(each.value, "description", "Security policy for Agent Gateway")
   action      = each.value.action
 
-  # Link to the Load Balancer Forwarding Rule
   target {
     load_balancing_scheme = each.value.load_balancing_scheme
     resources             = each.value.target_resources
   }
 
-  # Link to one or more deduplicated extensions
   dynamic "custom_provider" {
     for_each = length(lookup(each.value, "extension_names", [])) > 0 ? [1] : []
     content {
       authz_extension {
+        # Links to the IDs of deduplicated extensions created above
         resources = [
           for ext_name in each.value.extension_names :
           google_network_services_authz_extension.extensions[ext_name].id
@@ -59,40 +44,34 @@ resource "google_network_security_authz_policy" "policies" {
     }
   }
 
-  # Map the complex HTTP rules from your requirement
   dynamic "http_rules" {
-    for_each = each.value.http_rules
+    for_each = lookup(each.value, "http_rules", [])
     content {
-      # The CEL expression condition
-      when = http_rules.value.when
+      when = lookup(http_rules.value, "when", null)
 
       dynamic "from" {
-        for_each = http_rules.value.from != null ? [http_rules.value.from] : []
+        for_each = lookup(http_rules.value, "from", null) != null ? [http_rules.value.from] : []
         content {
-          # Handle 'sources'
-          dynamic "sources" {
-            for_each = from.value.sources
-            content {
-              dynamic "ip_blocks" {
-                for_each = sources.value.ip_blocks
-                content {
-                  prefix = ip_blocks.value.prefix
-                  length = ip_blocks.value.length
-                }
-              }
-              # ... add principals mapping ...
-            }
-          }
-
-          # Handle 'not_sources' (Your specific requirement)
           dynamic "not_sources" {
-            for_each = from.value.not_sources
+            for_each = lookup(from.value, "not_sources", [])
             content {
-              dynamic "ip_blocks" {
-                for_each = not_sources.value.ip_blocks
+              # FIX: ip_blocks is an argument (list of strings), not a block
+              ip_blocks = [
+                for b in lookup(not_sources.value, "ip_blocks", []) :
+                "${b.prefix}/${b.length}"
+              ]
+
+              dynamic "principals" {
+                for_each = lookup(not_sources.value, "principals", [])
                 content {
-                  prefix = ip_blocks.value.prefix
-                  length = ip_blocks.value.length
+                  principal_selector = principals.value.principal_selector
+                  dynamic "principal" {
+                    for_each = [principals.value.principal]
+                    content {
+                      exact       = principal.value.exact
+                      ignore_case = lookup(principal.value, "ignore_case", true)
+                    }
+                  }
                 }
               }
             }
@@ -101,14 +80,38 @@ resource "google_network_security_authz_policy" "policies" {
       }
 
       dynamic "to" {
-        for_each = http_rules.value.to != null ? [http_rules.value.to] : []
+        for_each = lookup(http_rules.value, "to", null) != null ? [http_rules.value.to] : []
         content {
           dynamic "operations" {
-            for_each = to.value.operations
+            for_each = lookup(to.value, "operations", [])
             content {
-              paths   = operations.value.paths
-              methods = operations.value.methods
-              # ... add header_set mapping ...
+              # FIX: paths is a block, not an argument
+              dynamic "paths" {
+                for_each = lookup(operations.value, "paths", [])
+                content {
+                  exact = lookup(paths.value, "exact", null)
+                }
+              }
+              methods = lookup(operations.value, "methods", [])
+
+              dynamic "header_set" {
+                for_each = lookup(operations.value, "header_set", [])
+                content {
+                  dynamic "headers" {
+                    for_each = lookup(header_set.value, "headers", [])
+                    content {
+                      name = headers.value.name
+                      dynamic "value" {
+                        for_each = [headers.value.value]
+                        content {
+                          exact       = value.value.exact
+                          ignore_case = lookup(value.value, "ignore_case", true)
+                        }
+                      }
+                    }
+                  }
+                }
+              }
             }
           }
         }
