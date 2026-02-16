@@ -1,35 +1,55 @@
 /**
+ * Copyright 2026 Google LLC
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/**
  * Unit Kind 3: Authz Policies and Extensions
- * This module provisions the security layer for the Universal Agent Gateway.
+ * This module provisions the security layer for the Agent Gateway.
  * It ensures many-to-many relationships and deduplicated extension creation.
  */
 
-# 1. Provision Authz Extensions (Deduplicated via Map Keys)
+# 1. Provision Authz Extensions (Internal Map Conversion for Deduplication)
 resource "google_network_services_authz_extension" "extensions" {
-  for_each = var.extensions_config
+  # Convert list to map so we can reference IDs by name key
+  for_each = { for e in var.extensions_config : e.name => e }
 
-  provider              = google-beta
+  # CRITICAL: Forces use of v7.x logic for L7 fields
+  provider = google-beta 
+
   project               = var.project_id
   location              = var.location
   name                  = each.key
-  description           = lookup(each.value, "description", "Managed by ADC")
+  description           = each.value.description
   load_balancing_scheme = each.value.load_balancing_scheme
   authority             = each.value.authority
   service               = each.value.backend_service
-  timeout               = lookup(each.value, "timeout", "0.1s")
-  fail_open             = lookup(each.value, "fail_open", false)
-  forward_headers       = lookup(each.value, "forward_headers", [])
+  timeout               = each.value.timeout
+  fail_open             = each.value.fail_open
+  forward_headers       = each.value.forward_headers
 }
 
 # 2. Provision Authz Policies
 resource "google_network_security_authz_policy" "policies" {
-  for_each = var.policies_config
+  for_each = { for p in var.policies_config : p.name => p }
 
-  provider              = google-beta
+  provider = google-beta 
+
   project     = var.project_id
   location    = var.location
   name        = each.key
-  description = lookup(each.value, "description", "Security policy for Agent Gateway")
+  description = each.value.description
   action      = each.value.action
 
   target {
@@ -37,12 +57,11 @@ resource "google_network_security_authz_policy" "policies" {
     resources             = each.value.target_resources
   }
 
+  # Linkage to shared extensions
   dynamic "custom_provider" {
-    # Only create the provider block if extensions are linked
-    for_each = length(lookup(each.value, "extension_names", [])) > 0 ? [1] : []
+    for_each = length(each.value.extension_names) > 0 ? [1] : []
     content {
       authz_extension {
-        # Dynamically links to the IDs of the extensions created in the first step
         resources = [
           for ext_name in each.value.extension_names :
           google_network_services_authz_extension.extensions[ext_name].id
@@ -51,21 +70,21 @@ resource "google_network_security_authz_policy" "policies" {
     }
   }
 
-  # Map structured HTTP rules (from, to, when)
+  # Dynamic HTTP rules mapping
   dynamic "http_rules" {
-    for_each = lookup(each.value, "http_rules", [])
+    for_each = each.value.http_rules
     content {
-      when = lookup(http_rules.value, "when", null)
+      when = http_rules.value.when
 
       dynamic "from" {
-        for_each = lookup(http_rules.value, "from", null) != null ? [http_rules.value.from] : []
+        for_each = http_rules.value.from != null ? [http_rules.value.from] : []
         content {
           dynamic "not_sources" {
-            for_each = lookup(from.value, "not_sources", [])
+            for_each = from.value.not_sources
             content {
-              # ip_blocks is a REPEATED BLOCK
+              # ip_blocks is a REPEATED BLOCK in v7.x
               dynamic "ip_blocks" {
-                for_each = lookup(not_sources.value, "ip_blocks", [])
+                for_each = not_sources.value.ip_blocks
                 content {
                   prefix = ip_blocks.value.prefix
                   length = ip_blocks.value.length
@@ -73,14 +92,14 @@ resource "google_network_security_authz_policy" "policies" {
               }
 
               dynamic "principals" {
-                for_each = lookup(not_sources.value, "principals", [])
+                for_each = not_sources.value.principals
                 content {
-                  principal_selector = lookup(principals.value, "principal_selector", "CLIENT_CERT_URI_SAN")
+                  principal_selector = principals.value.principal_selector
                   dynamic "principal" {
-                    for_each = lookup(principals.value, "principal", null) != null ? [principals.value.principal] : []
+                    for_each = principals.value.principal != null ? [principals.value.principal] : []
                     content {
-                      exact       = lookup(principal.value, "exact", null)
-                      ignore_case = lookup(principal.value, "ignore_case", true)
+                      exact       = principal.value.exact
+                      ignore_case = principal.value.ignore_case
                     }
                   }
                 }
@@ -91,33 +110,31 @@ resource "google_network_security_authz_policy" "policies" {
       }
 
       dynamic "to" {
-        for_each = lookup(http_rules.value, "to", null) != null ? [http_rules.value.to] : []
+        for_each = http_rules.value.to != null ? [http_rules.value.to] : []
         content {
           dynamic "operations" {
-            for_each = lookup(to.value, "operations", [])
+            for_each = to.value.operations
             content {
-              # paths is a REPEATED BLOCK
+              methods = operations.value.methods
+              # paths is a REPEATED BLOCK in v7.x
               dynamic "paths" {
-                for_each = lookup(operations.value, "paths", [])
+                for_each = operations.value.paths
                 content {
-                  exact = lookup(paths.value, "exact", null)
+                  exact = paths.value.exact
                 }
               }
-              
-              methods = lookup(operations.value, "methods", [])
-
               dynamic "header_set" {
-                for_each = lookup(operations.value, "header_set", [])
+                for_each = operations.value.header_set
                 content {
                   dynamic "headers" {
-                    for_each = lookup(header_set.value, "headers", [])
+                    for_each = header_set.value.headers
                     content {
                       name = headers.value.name
                       dynamic "value" {
-                        for_each = [headers.value.value]
+                        for_each = headers.value.value != null ? [headers.value.value] : []
                         content {
                           exact       = value.value.exact
-                          ignore_case = lookup(value.value, "ignore_case", true)
+                          ignore_case = value.value.ignore_case
                         }
                       }
                     }

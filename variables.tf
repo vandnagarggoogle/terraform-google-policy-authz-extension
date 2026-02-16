@@ -25,55 +25,63 @@ variable "location" {
 }
 
 variable "extensions_config" {
-  description = "A map of unique Authz Extensions."
-  type = map(object({
-    description           = optional(string, "Managed by ADC")
-    load_balancing_scheme = string # e.g., "INTERNAL_MANAGED"
+  description = "A list of unique Authz Extensions."
+  type = list(object({
+    name                  = string # Unique ID for the extension
     authority             = string
     backend_service       = string
+    load_balancing_scheme = string
+    description           = optional(string, "Managed by ADC")
     timeout               = optional(string, "0.1s")
     fail_open             = optional(bool, false)
     forward_headers       = optional(list(string), [])
   }))
-  default = {}
 }
 
+
 variable "policies_config" {
-  description = "A map of Authz Policies."
-  type = map(object({
-    description           = optional(string, "Security policy for Agent Gateway")
-    action                = string # ALLOW, DENY, CUSTOM
-    target_resources      = list(string)
+  description = "List of Authz Policies with structured rules."
+  type = list(object({
+    name                  = string # The unique identifier for the policy
+    action                = string
     load_balancing_scheme = string
+    target_resources      = list(string)
+    description           = optional(string, "Managed by ADC")
     extension_names       = optional(list(string), [])
-    
-    # Structured HTTP Rules
     http_rules = optional(list(object({
+      when = optional(string)
       from = optional(object({
-        sources = optional(list(object({
-          ip_blocks = optional(list(object({
-            prefix = string
-            length = number
-          })), [])
-          principals = optional(list(any), [])
-        })), [])
         not_sources = optional(list(object({
           ip_blocks = optional(list(object({
             prefix = string
             length = number
           })), [])
-          principals = optional(list(any), [])
+          principals = optional(list(object({
+            principal_selector = optional(string, "CLIENT_CERT_URI_SAN")
+            principal = optional(object({
+              exact       = optional(string)
+              ignore_case = optional(bool, true)
+            }))
+          })), [])
         })), [])
       }))
       to = optional(object({
         operations = optional(list(object({
-          paths      = optional(list(any), [])
-          methods    = optional(list(string), [])
-          header_set = optional(list(any), [])
+          paths = optional(list(object({
+            exact = string
+          })), [])
+          methods = optional(list(string), [])
+          header_set = optional(list(object({
+            headers = optional(list(object({
+              name = string
+              value = object({
+                exact       = string
+                ignore_case = optional(bool, true)
+              })
+            })), [])
+          })), [])
         })), [])
       }))
-      when = optional(string) # CEL Expression
     })), [])
   }))
-  default = {}
 }
