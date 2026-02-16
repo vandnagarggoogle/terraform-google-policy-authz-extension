@@ -24,7 +24,7 @@ spec:
     source:
       repo: https://github.com/vandnagarggoogle/terraform-google-policy-authz-extension.git
       sourceType: git
-    version: 0.0.9
+    version: 0.0.10
     actuationTool:
       flavor: Terraform
       version: ">= 0.13"
@@ -128,5 +128,5 @@ spec:
       - storage-api.googleapis.com
       - serviceusage.googleapis.com
     providerVersions:
-      - source: hashicorp/google
-        version: ">= 3.53, < 7"
+      - source: hashicorp/google-beta
+        version: ">= 5.36, < 8"
