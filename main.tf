@@ -1,4 +1,8 @@
-
+/**
+ * Unit Kind 3: Authz Policies and Extensions
+ * This module provisions the security layer for the Universal Agent Gateway.
+ * It ensures many-to-many relationships and deduplicated extension creation.
+ */
 
 # 1. Provision Authz Extensions (Deduplicated via Map Keys)
 resource "google_network_services_authz_extension" "extensions" {
@@ -7,7 +11,7 @@ resource "google_network_services_authz_extension" "extensions" {
   project               = var.project_id
   location              = var.location
   name                  = each.key
-  description           = lookup(each.value, "description", "Managed by ADC Agent Gateway")
+  description           = lookup(each.value, "description", "Managed by ADC")
   load_balancing_scheme = each.value.load_balancing_scheme
   authority             = each.value.authority
   service               = each.value.backend_service
@@ -32,10 +36,11 @@ resource "google_network_security_authz_policy" "policies" {
   }
 
   dynamic "custom_provider" {
+    # Only create the provider block if extensions are linked
     for_each = length(lookup(each.value, "extension_names", [])) > 0 ? [1] : []
     content {
       authz_extension {
-        # Links to the IDs of deduplicated extensions created above
+        # Dynamically links to the IDs of the extensions created in the first step
         resources = [
           for ext_name in each.value.extension_names :
           google_network_services_authz_extension.extensions[ext_name].id
@@ -44,6 +49,7 @@ resource "google_network_security_authz_policy" "policies" {
     }
   }
 
+  # Map structured HTTP rules (from, to, when)
   dynamic "http_rules" {
     for_each = lookup(each.value, "http_rules", [])
     content {
@@ -55,20 +61,23 @@ resource "google_network_security_authz_policy" "policies" {
           dynamic "not_sources" {
             for_each = lookup(from.value, "not_sources", [])
             content {
-              # FIX: ip_blocks is an argument (list of strings), not a block
-              ip_blocks = [
-                for b in lookup(not_sources.value, "ip_blocks", []) :
-                "${b.prefix}/${b.length}"
-              ]
+              # ip_blocks is a REPEATED BLOCK
+              dynamic "ip_blocks" {
+                for_each = lookup(not_sources.value, "ip_blocks", [])
+                content {
+                  prefix = ip_blocks.value.prefix
+                  length = ip_blocks.value.length
+                }
+              }
 
               dynamic "principals" {
                 for_each = lookup(not_sources.value, "principals", [])
                 content {
-                  principal_selector = principals.value.principal_selector
+                  principal_selector = lookup(principals.value, "principal_selector", "CLIENT_CERT_URI_SAN")
                   dynamic "principal" {
-                    for_each = [principals.value.principal]
+                    for_each = lookup(principals.value, "principal", null) != null ? [principals.value.principal] : []
                     content {
-                      exact       = principal.value.exact
+                      exact       = lookup(principal.value, "exact", null)
                       ignore_case = lookup(principal.value, "ignore_case", true)
                     }
                   }
@@ -85,13 +94,14 @@ resource "google_network_security_authz_policy" "policies" {
           dynamic "operations" {
             for_each = lookup(to.value, "operations", [])
             content {
-              # FIX: paths is a block, not an argument
+              # paths is a REPEATED BLOCK
               dynamic "paths" {
                 for_each = lookup(operations.value, "paths", [])
                 content {
                   exact = lookup(paths.value, "exact", null)
                 }
               }
+              
               methods = lookup(operations.value, "methods", [])
 
               dynamic "header_set" {
