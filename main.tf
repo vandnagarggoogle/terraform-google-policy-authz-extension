@@ -8,6 +8,7 @@
 resource "google_network_services_authz_extension" "extensions" {
   for_each = var.extensions_config
 
+  provider              = google-beta
   project               = var.project_id
   location              = var.location
   name                  = each.key
@@ -24,6 +25,7 @@ resource "google_network_services_authz_extension" "extensions" {
 resource "google_network_security_authz_policy" "policies" {
   for_each = var.policies_config
 
+  provider              = google-beta
   project     = var.project_id
   location    = var.location
   name        = each.key
@@ -61,25 +63,28 @@ resource "google_network_security_authz_policy" "policies" {
           dynamic "not_sources" {
             for_each = lookup(from.value, "not_sources", [])
             content {
-              # CORRECTED: ip_blocks is a list of strings (e.g., ["192.168.1.0/24"])
-              ip_blocks = lookup(not_sources.value, "ip_blocks", [])
+              # ip_blocks is a REPEATED BLOCK
+              dynamic "ip_blocks" {
+                for_each = lookup(not_sources.value, "ip_blocks", [])
+                content {
+                  prefix = ip_blocks.value.prefix
+                  length = ip_blocks.value.length
+                }
+              }
 
-              # CORRECTED: principals is a list of strings (e.g., ["spiffe://my-domain/ns/default/sa/my-sa"])
-              principals = lookup(not_sources.value, "principals", [])
-
-              # Add other source fields if needed, e.g.:
-              namespaces         = lookup(not_sources.value, "namespaces", [])
-              request_principals = lookup(not_sources.value, "request_principals", [])
-            }
-          }
-          # You can also include a "sources" block if needed:
-          dynamic "sources" {
-            for_each = lookup(from.value, "sources", [])
-            content {
-              ip_blocks          = lookup(sources.value, "ip_blocks", [])
-              principals         = lookup(sources.value, "principals", [])
-              namespaces         = lookup(sources.value, "namespaces", [])
-              request_principals = lookup(sources.value, "request_principals", [])
+              dynamic "principals" {
+                for_each = lookup(not_sources.value, "principals", [])
+                content {
+                  principal_selector = lookup(principals.value, "principal_selector", "CLIENT_CERT_URI_SAN")
+                  dynamic "principal" {
+                    for_each = lookup(principals.value, "principal", null) != null ? [principals.value.principal] : []
+                    content {
+                      exact       = lookup(principal.value, "exact", null)
+                      ignore_case = lookup(principal.value, "ignore_case", true)
+                    }
+                  }
+                }
+              }
             }
           }
         }
@@ -91,14 +96,14 @@ resource "google_network_security_authz_policy" "policies" {
           dynamic "operations" {
             for_each = lookup(to.value, "operations", [])
             content {
-              # paths is a list of PathMatcher objects, each with an "exact" field
+              # paths is a REPEATED BLOCK
               dynamic "paths" {
                 for_each = lookup(operations.value, "paths", [])
                 content {
                   exact = lookup(paths.value, "exact", null)
                 }
               }
-
+              
               methods = lookup(operations.value, "methods", [])
 
               dynamic "header_set" {
