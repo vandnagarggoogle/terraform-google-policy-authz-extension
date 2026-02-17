@@ -66,7 +66,7 @@ resource "google_network_security_authz_policy" "policies" {
       }
 
       dynamic "authz_extension" {
-        for_each = each.value.extension_name != null ? [1] : []
+        for_each = (!each.value.iap_enabled && each.value.extension_name != null) ? [1] : []
         content {
           resources = [
             google_network_services_authz_extension.extensions[each.value.extension_name].id

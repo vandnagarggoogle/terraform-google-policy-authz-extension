@@ -28,7 +28,7 @@ variable "policies_config" {
     load_balancing_scheme = string
     target_resources      = list(string)
     description           = optional(string, "Managed by ADC")
-    extension_names       = optional(list(string), [])
+    extension_name        = optional(string)
     iap_enabled           = optional(bool,false)
     http_rules = optional(list(object({
       when = optional(string)
