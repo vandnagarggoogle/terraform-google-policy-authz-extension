@@ -20,18 +20,15 @@ variable "extensions_config" {
 }
 
 variable "policies_config" {
-  description = "List of security rules. Each can link to ONE extension or IAP."
+  description = "A list of Authz Policies with structured HTTP rules."
   type = list(object({
     name                  = string
-    action                = string # ALLOW, DENY, CUSTOM
+    action                = string
     load_balancing_scheme = string
     target_resources      = list(string)
-    description           = optional(string, "Security policy for Agent Gateway")
+    description           = optional(string, "Managed by ADC")
+    extension_names       = optional(list(string), [])
     
-    extension_name        = optional(string) 
-    
-    iap_enabled           = optional(bool, false)
-
     http_rules = optional(list(object({
       when = optional(string)
       from = optional(object({
@@ -40,13 +37,31 @@ variable "policies_config" {
             prefix = string
             length = number
           })), [])
+          principals = optional(list(object({
+            principal_selector = optional(string, "CLIENT_CERT_URI_SAN")
+            principal = optional(object({
+              exact       = optional(string)
+              ignore_case = optional(bool, true)
+            }))
+          })), [])
         })), [])
       }))
       to = optional(object({
         operations = optional(list(object({
-          paths = optional(list(object({ exact = string })), [])
+          methods = optional(list(string), [])
+          paths   = optional(list(object({ exact = string })), [])
+          header_set = optional(list(object({
+            headers = optional(list(object({
+              name = string
+              value = optional(object({
+                exact       = string
+                ignore_case = optional(bool, true)
+              }))
+            })), [])
+          })), [])
         })), [])
       }))
     })), [])
   }))
 }
+

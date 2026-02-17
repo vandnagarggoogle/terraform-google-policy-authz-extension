@@ -121,7 +121,6 @@ resource "google_network_security_authz_policy" "policies" {
             for_each = to.value.operations
             content {
               methods = operations.value.methods
-              # paths is a REPEATED BLOCK in v7.x
               dynamic "paths" {
                 for_each = operations.value.paths
                 content {
