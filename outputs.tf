@@ -26,9 +26,10 @@ output "policy_ids" {
 }
 
 output "policy_extension_map" {
-  description = "A mapping showing the list of extension IDs associated with each policy name."
+  description = "Maps each policy name to its single assigned extension ID."
   value = {
     for name, policy in google_network_security_authz_policy.policies :
-    name => try(policy.custom_provider[0].authz_extension[0].resources, [])
+    name => try(policy.custom_provider[0].authz_extension[0].resources[0], "none")
   }
 }
+

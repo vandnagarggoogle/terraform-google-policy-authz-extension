@@ -22,50 +22,55 @@
 
 # 1. Provision Authz Extensions (Internal Map Conversion for Deduplication)
 resource "google_network_services_authz_extension" "extensions" {
-  # Convert list to map so we can reference IDs by name key
   for_each = { for e in var.extensions_config : e.name => e }
-
-  # CRITICAL: Forces use of v7.x logic for L7 fields
-  provider = google-beta 
+  
+  provider = google-beta
 
   project               = var.project_id
   location              = var.location
   name                  = each.key
-  description           = each.value.description
   load_balancing_scheme = each.value.load_balancing_scheme
   authority             = each.value.authority
   service               = each.value.backend_service
   timeout               = each.value.timeout
   fail_open             = each.value.fail_open
-  forward_headers       = each.value.forward_headers
 }
 
 # 2. Provision Authz Policies
 resource "google_network_security_authz_policy" "policies" {
   for_each = { for p in var.policies_config : p.name => p }
 
-  provider = google-beta 
+  provider = google-beta
 
-  project     = var.project_id
-  location    = var.location
-  name        = each.key
-  description = each.value.description
-  action      = each.value.action
+  project  = var.project_id
+  location = var.location
+  name     = each.key
+  action   = each.value.action
 
   target {
     load_balancing_scheme = each.value.load_balancing_scheme
     resources             = each.value.target_resources
   }
 
-  # Linkage to shared extensions
   dynamic "custom_provider" {
-    for_each = length(each.value.extension_names) > 0 ? [1] : []
+    # Trigger if either IAP or an Extension is requested
+    for_each = (each.value.iap_enabled || each.value.extension_name != null) ? [1] : []
     content {
-      authz_extension {
-        resources = [
-          for ext_name in each.value.extension_names :
-          google_network_services_authz_extension.extensions[ext_name].id
-        ]
+      # Path A: Non-custom Cloud IAP
+      dynamic "cloud_iap" {
+        for_each = each.value.iap_enabled ? [1] : []
+        content {
+          enabled = true
+        }
+      }
+
+      dynamic "authz_extension" {
+        for_each = each.value.extension_name != null ? [1] : []
+        content {
+          resources = [
+            google_network_services_authz_extension.extensions[each.value.extension_name].id
+          ]
+        }
       }
     }
   }
