@@ -55,9 +55,8 @@ resource "google_network_security_authz_policy" "policies" {
 
   dynamic "custom_provider" {
     # Trigger if either IAP or an Extension is requested
-    for_each = (each.value.iap_enabled || each.value.extension_name != null) ? [1] : []
+    for_each = each.value.action == "CUSTOM" ? [1] : []
     content {
-      # Path A: Non-custom Cloud IAP
       dynamic "cloud_iap" {
         for_each = each.value.iap_enabled ? [1] : []
         content {
