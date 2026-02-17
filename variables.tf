@@ -16,6 +16,7 @@ variable "extensions_config" {
     description           = optional(string, "Managed by ADC")
     timeout               = optional(string, "0.1s")
     fail_open             = optional(bool, false)
+    forward_headers       = optional(list(string), []) 
   }))
 }
 

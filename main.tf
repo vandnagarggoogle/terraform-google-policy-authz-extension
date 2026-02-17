@@ -34,6 +34,7 @@ resource "google_network_services_authz_extension" "extensions" {
   service               = each.value.backend_service
   timeout               = each.value.timeout
   fail_open             = each.value.fail_open
+  forward_headers       = each.value.forward_headers
 }
 
 # 2. Provision Authz Policies
