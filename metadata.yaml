@@ -10,7 +10,7 @@ spec:
     source:
       repo: https://github.com/vandnagarggoogle/terraform-google-policy-authz-extension.git
       sourceType: git
-    version: 0.0.16
+    version: 0.0.17
     actuationTool:
       flavor: Terraform
       version: ">= 0.13"
@@ -66,7 +66,7 @@ spec:
               target_resources      = list(string)
               description           = optional(string, "Managed by ADC")
               extension_names       = optional(list(string), [])
-              
+              iap_enabled           = optional(bool,false)
               http_rules = optional(list(object({
                 when = optional(string)
                 from = optional(object({

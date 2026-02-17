@@ -29,7 +29,7 @@ variable "policies_config" {
     target_resources      = list(string)
     description           = optional(string, "Managed by ADC")
     extension_names       = optional(list(string), [])
-    
+    iap_enabled           = optional(bool,false)
     http_rules = optional(list(object({
       when = optional(string)
       from = optional(object({
